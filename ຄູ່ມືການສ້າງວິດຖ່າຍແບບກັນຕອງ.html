@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ຄູ່ມືການສ້າງວິດຖ່າຍແບບກັນຕອງ</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f8fafc;--card:#fff;--fg:#1e293b;--muted:#64748b;--line:#e2e8f0;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f172a;--card:#1e293b;--fg:#f1f5f9;--muted:#94a3b8;--line:#334155;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f172a;--card:#1e293b;--fg:#f1f5f9;--muted:#94a3b8;--line:#334155;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{font-family:'Noto Sans Lao','Noto Sans',sans-serif;background:var(--bg);color:var(--fg)}
+.card{background:var(--card);border:1px solid var(--line)}
+.muted{color:var(--muted)}
+.tint{color:#1e293b}
+input{color:#0f172a}
+#xsec.playing text{display:none}
+#xsec.playing #badges text{display:inline}
+#xsec.playing #dims,#xsec.playing #layer-legend,#xsec.playing rect[opacity="0.78"],#xsec.playing rect[opacity="0.92"],#xsec.playing path[d^="M412 175"]{display:none}
+@media print{.no-print{display:none!important}body{background:#fff}}
+</style>
+</head>
+<body class="p-3 md:p-8">
+<div id="toast" role="status" class="no-print fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-sm font-bold text-white bg-slate-800 hidden z-50"></div>
+<div class="no-print sticky top-0 z-40 mb-3 rounded-xl card p-2 flex flex-wrap gap-2 items-center justify-between" style="top:env(safe-area-inset-top,0px)">
+  <b style="color:#0f766e">📱 ແອັບຄຳນວນວິດຖ່າຍກັນຕອງ</b>
+  <div class="flex gap-2 flex-wrap">
+    <button onclick="saveState()" class="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-700">💾 ບັນທຶກ</button>
+    <button onclick="loadState(true)" class="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-slate-600">↻ ຮຽກຄືນ</button>
+    <button onclick="resetState()" class="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-700">🗑️ ລ້າງ</button>
+    <div class="relative" id="export-wrap">
+      <button id="export-btn" type="button" onclick="toggleExportMenu(event)" aria-haspopup="true" aria-expanded="false" class="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-600">⬇ ສົ່ງອອກ ▾</button>
+      <div id="export-menu" class="hidden absolute right-0 mt-1 w-44 rounded-lg shadow-lg card z-50 overflow-hidden text-xs font-bold">
+        <button type="button" onclick="doExport('docx')" class="w-full text-left px-3 py-2 hover:bg-teal-600/20">📝 Word (.docx)</button>
+        <button type="button" onclick="doExport('pdf')" class="w-full text-left px-3 py-2 hover:bg-teal-600/20">📄 PDF (.pdf)</button>
+      </div>
+    </div>
+    <button id="print-fallback" type="button" onclick="window.print()" class="hidden px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-600">🖨️ ພິມ</button>
+  </div>
+</div>
+
+<div id="export-root" class="max-w-5xl mx-auto card rounded-2xl shadow-xl overflow-hidden">
+  <div class="bg-gradient-to-r from-teal-700 to-emerald-800 text-white p-6 md:p-10 text-center">
+    <h1 class="text-2xl md:text-4xl font-bold mb-2">ຄູ່ມືການສ້າງວິດຖ່າຍແບບກັນຕອງ</h1>
+    <p class="text-teal-100 text-sm md:text-base">ລະບົບສອງຖັງ: ຖັງອາຈົມ (Septic Tank) + ຖັງຕອງ (Filter Tank)</p>
+  </div>
+
+  <div class="p-5 md:p-10 space-y-10">
+    <!-- 1. Inputs -->
+    <section>
+      <h2 class="text-xl font-bold border-b-2 border-teal-600 pb-2 mb-5">1. ວັດສະດຸ, ຂະໜາດຖັງ ແລະ ງົບປະມານ</h2>
+      <div class="grid md:grid-cols-2 gap-5">
+        <div class="rounded-xl p-4 bg-teal-50 tint">
+          <h3 class="font-bold mb-2">📦 ຖັງອາຈົມ (Septic Tank)</h3>
+          <div id="septic-fields" class="space-y-2 text-sm font-semibold"></div>
+        </div>
+        <div class="rounded-xl p-4 bg-emerald-50 tint">
+          <h3 class="font-bold mb-2">🧪 ຖັງຕອງ (Filter Tank)</h3>
+          <div id="filter-fields" class="space-y-2 text-sm font-semibold"></div>
+        </div>
+        <div class="rounded-xl p-4 bg-blue-50 tint">
+          <h3 class="font-bold mb-2">🚰 ລະບົບທໍ່ (Pipes & Fittings)</h3>
+          <div id="pipes-container" class="space-y-2"></div>
+          <button onclick="addItem('pipes-container','• ລາຍການໃໝ່','1','ເສັ້ນ','20000')" class="mt-2 w-full py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600">➕ ເພີ່ມອຸປະກອນ</button>
+          <div class="mt-2 p-2 rounded-lg bg-blue-100 flex justify-between text-xs font-bold"><span>💵 ລວມຄ່າທໍ່</span><span id="card-pipe-total">0 ກີບ</span></div>
+          <div class="mt-3 space-y-2 text-xs font-semibold">
+            <div class="flex justify-between items-center"><label for="excavation-labor-cost">• ແຮງງານຂຸດຂຸມ</label><input id="excavation-labor-cost" type="number" value="223200" step="1000" min="0" class="w-28 px-2 py-1 text-right border border-slate-300 rounded" oninput="calc()"></div>
+            <div class="flex justify-between items-center"><label for="mason-labor-cost">• ແຮງງານຊ່າງ</label><input id="mason-labor-cost" type="number" value="1200000" step="10000" min="0" class="w-28 px-2 py-1 text-right border border-slate-300 rounded" oninput="calc()"></div>
+          </div>
+        </div>
+        <div class="rounded-xl p-4 bg-amber-50 tint">
+          <h3 class="font-bold mb-2">🪵 ວັດສະດຸຕອງ (Filter Materials)</h3>
+          <div id="filter-materials-container" class="space-y-2"></div>
+          <button onclick="addItem('filter-materials-container','• ວັດສະດຸໃໝ່','1','ກະສອບ','30000')" class="mt-2 w-full py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600">➕ ເພີ່ມວັດສະດຸ</button>
+          <div class="mt-2 p-2 rounded-lg bg-amber-100 flex justify-between text-xs font-bold"><span>💵 ລວມຄ່າວັດສະດຸຕອງ</span><span id="card-filter-total">0 ກີບ</span></div>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-xl p-4 bg-slate-900 text-slate-200 text-sm space-y-1">
+        <div class="font-bold text-amber-400 mb-2">📊 ງົບປະມານລວມ</div>
+        <div class="flex justify-between"><span>• ຄ່າທໍ່</span><b id="summary-pipe-cost">0</b></div>
+        <div class="flex justify-between"><span>• ຄ່າວັດສະດຸຕອງ</span><b id="summary-filter-cost">0</b></div>
+        <div class="flex justify-between"><span>• ແຮງງານຂຸດຂຸມ</span><b id="summary-excavation-cost">0</b></div>
+        <div class="flex justify-between"><span>• ແຮງງານຊ່າງ</span><b id="summary-mason-cost">0</b></div>
+        <div class="flex justify-between pt-2 mt-2 border-t border-amber-500/60 text-base"><b class="text-amber-400">💰 ລວມທັງໝົດ</b><b id="summary-grand-total" class="text-amber-300 text-xl">0</b></div>
+      </div>
+      <div class="mt-5 text-center no-print">
+        <button onclick="calc()" class="px-8 py-3 rounded-2xl text-white font-extrabold bg-gradient-to-r from-emerald-600 to-indigo-600 shadow-lg">🚀 ເລີ້ມສ້າງວິດຖ່າຍ (ຄິດໄລ່ & ອັບເດດ)</button>
+      </div>
+    </section>
+
+    <!-- 2. Diagram -->
+    <section>
+      <h2 class="text-xl font-bold border-b-2 border-teal-600 pb-2 mb-5">2. ຮູບໜ້າຕັດ (Cross-Section)</h2>
+      <div class="no-print flex flex-wrap items-center gap-2 mb-3">
+        <button id="flow-btn" type="button" onclick="toggleFlow()" class="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-600">⏸ ຢຸດອານິເມຊັນ</button>
+        <span class="text-xs muted">ເບິ່ງການໄຫຼຂອງນ້ຳ ແລະ ອາຈົມ ຕັ້ງແຕ່ຊັກໂຄຣກ ຈົນເປັນນ້ຳຕອງແລ້ວອອກ (ເລກ 1-5)</span>
+      </div>
+      <div class="no-print flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 text-xs muted">
+        <span class="flex items-center gap-1"><svg width="22" height="20" viewBox="-11 -10 22 20" aria-hidden="true"><ellipse cx="0" cy="3.5" rx="7" ry="3.8" fill="#5a3214" stroke="#fbbf24"/><ellipse cx="0" cy="-0.5" rx="5" ry="3.2" fill="#7c4a1d" stroke="#fbbf24"/><ellipse cx="0" cy="-4" rx="2.8" ry="2.4" fill="#9a6a33" stroke="#fbbf24"/></svg>ອາຈົມ / ຂອງແຂງ</span>
+        <span class="flex items-center gap-1"><span class="inline-flex items-center justify-center rounded" style="background:#2563eb;width:24px;height:24px"><svg width="14" height="16" viewBox="-7 -8 14 16" aria-hidden="true"><path d="M0 -6 C3 -2 5 0 5 2.5 A5 5 0 0 1 -5 2.5 C-5 0 -3 -2 0 -6Z" fill="#38bdf8" stroke="#e0f2fe" stroke-width="1"/></svg></span>ນ້ຳ</span>
+        <span class="flex items-center gap-1"><svg width="22" height="12" viewBox="-11 -6 22 12" aria-hidden="true"><ellipse cx="0" cy="0" rx="9" ry="3" fill="#a16207"/></svg>ຝ້າລອຍ</span>
+        <span class="flex items-center gap-1"><span class="inline-flex items-center justify-center rounded" style="background:#4a3321;width:24px;height:24px"><svg width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true"><circle r="3" fill="rgba(255,255,255,.25)" stroke="#e5e7eb" stroke-width="0.8"/></svg></span>ແກັສ</span>
+      </div>
+      <div id="diagram-wrap" class="overflow-x-auto rounded-xl border border-slate-300">
+        <svg id="xsec" viewBox="0 0 900 430" class="playing w-full min-w-[720px] h-auto" role="img" aria-label="Cross-section diagram">
+          <defs><marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#60a5fa"/></marker>
+          <linearGradient id="void-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1f5f9"/><stop offset="1" stop-color="#cbd5e1"/></linearGradient>
+          <pattern id="gravel-real" width="48" height="44" patternUnits="userSpaceOnUse"><rect width="48" height="44" fill="#475569"/>
+            <ellipse cx="9" cy="9" rx="8" ry="6" fill="#94a3b8" stroke="#334155" stroke-width="1"/>
+            <ellipse cx="27" cy="8" rx="7" ry="6" fill="#cbd5e1" stroke="#475569" stroke-width="1"/>
+            <ellipse cx="41" cy="13" rx="6" ry="7" fill="#78859a" stroke="#334155" stroke-width="1"/>
+            <ellipse cx="16" cy="26" rx="9" ry="7" fill="#a8b3c4" stroke="#334155" stroke-width="1"/>
+            <ellipse cx="35" cy="29" rx="8" ry="6" fill="#8794a8" stroke="#334155" stroke-width="1"/>
+            <ellipse cx="6" cy="39" rx="6" ry="4" fill="#cbd5e1" stroke="#475569" stroke-width="1"/>
+            <ellipse cx="26" cy="40" rx="7" ry="4" fill="#64748b" stroke="#334155" stroke-width="1"/>
+            <ellipse cx="44" cy="41" rx="5" ry="4" fill="#a8b3c4" stroke="#334155" stroke-width="1"/></pattern>
+          <pattern id="sand-real" width="24" height="24" patternUnits="userSpaceOnUse"><rect width="24" height="24" fill="#d4a95a"/>
+            <circle cx="3" cy="4" r="1.3" fill="#f3dfa8"/><circle cx="11" cy="2" r="1" fill="#9a6e2c"/><circle cx="18" cy="6" r="1.5" fill="#efe2b8"/>
+            <circle cx="7" cy="10" r="1.1" fill="#b98a3e"/><circle cx="15" cy="12" r="1.3" fill="#f3dfa8"/><circle cx="22" cy="15" r="1" fill="#8a6428"/>
+            <circle cx="4" cy="17" r="1.4" fill="#e8cf8f"/><circle cx="12" cy="19" r="1" fill="#a97a33"/><circle cx="19" cy="21" r="1.3" fill="#f3dfa8"/>
+            <circle cx="9" cy="15" r="0.7" fill="#fff6d8"/><circle cx="21" cy="9" r="0.7" fill="#fff6d8"/></pattern>
+          <pattern id="charcoal-real" width="32" height="30" patternUnits="userSpaceOnUse"><rect width="32" height="30" fill="#0c0c0e"/>
+            <polygon points="2,4 11,2 14,9 8,14 1,10" fill="#27272a" stroke="#52525b" stroke-width="0.8"/>
+            <polygon points="17,3 27,5 29,12 21,15 15,10" fill="#3f3f46" stroke="#71717a" stroke-width="0.8"/>
+            <polygon points="4,17 12,15 16,23 9,28 2,24" fill="#18181b" stroke="#52525b" stroke-width="0.8"/>
+            <polygon points="19,19 28,17 31,25 24,29 17,26" fill="#2d2d31" stroke="#63636b" stroke-width="0.8"/>
+            <line x1="5" y1="6" x2="9" y2="5" stroke="#a1a1aa" stroke-width="0.8"/><line x1="20" y1="6" x2="25" y2="8" stroke="#a1a1aa" stroke-width="0.8"/></pattern>
+          </defs>
+          <rect width="900" height="90" fill="#e0f2fe"/>
+          <rect y="90" width="900" height="340" fill="#6c472b"/>
+          <rect y="86" width="900" height="10" fill="#16a34a"/>
+          <text x="12" y="76" fill="#15803d" font-size="13" font-weight="bold">🌱 ລະດັບໜ້າດິນ</text>
+          <rect x="30" y="20" width="130" height="66" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+          <polygon points="20,20 95,0 170,20" fill="#dc2626"/>
+          <text x="48" y="60" fill="#1e293b" font-size="12" font-weight="bold">ຊັກໂຄຣກ</text>
+          <path d="M95 86 L95 151 L250 151" fill="none" stroke="#2563eb" stroke-width="10" stroke-linejoin="miter"/>
+          <text x="110" y="140" fill="#fff" font-size="11" font-weight="bold">ທໍ່ Ø100 ລ່ຽງ 1:50</text>
+          <!-- septic -->
+          <rect x="250" y="78" width="408" height="312" fill="#9ca3af" stroke="#4b5563" stroke-width="5"/>
+          <rect x="250" y="72" width="231" height="18" fill="#b6bcc6" stroke="#4b5563" stroke-width="2" rx="2"/>
+          <rect x="487" y="72" width="171" height="18" fill="#b6bcc6" stroke="#4b5563" stroke-width="2" rx="2"/>
+          <rect x="326" y="72" width="74" height="18" fill="#6b7280" stroke="#1f2937" stroke-width="2" rx="2"/>
+          <rect x="352" y="77" width="22" height="5" rx="2.5" fill="#e5e7eb"/><circle cx="334" cy="81" r="1.8" fill="#e5e7eb"/><circle cx="392" cy="81" r="1.8" fill="#e5e7eb"/>
+          <rect x="318" y="95" width="90" height="16" rx="3" fill="#f1f5f9" opacity="0.92"/>
+          <text x="363" y="107" text-anchor="middle" font-size="10" font-weight="bold" fill="#1e293b">ຝາເປີດ ຮູລອກ/ດູດ (Manhole)</text>
+          <rect x="550" y="72" width="48" height="18" fill="#6b7280" stroke="#1f2937" stroke-width="2" rx="2"/>
+          <rect x="566" y="77" width="16" height="5" rx="2.5" fill="#e5e7eb"/>
+          <rect x="540" y="95" width="68" height="16" rx="3" fill="#f1f5f9" opacity="0.92"/>
+          <text x="574" y="107" text-anchor="middle" font-size="10" font-weight="bold" fill="#1e293b">ຝາກວດ (Hatch)</text>
+          <rect x="262" y="90" width="216" height="288" fill="url(#void-grad)"/>
+          <rect x="262" y="90" width="8" height="85" fill="#94a3b8" opacity="0.35"/><rect x="470" y="90" width="8" height="85" fill="#94a3b8" opacity="0.35"/>
+          <rect x="262" y="175" width="216" height="203" fill="#4a3321"/>
+          <rect x="262" y="320" width="216" height="58" fill="#1c1008"/>
+          <circle cx="256" cy="151" r="5" fill="#111827"/>
+          <path d="M236 151 L300 151 L300 215" fill="none" stroke="#2563eb" stroke-width="10" stroke-linejoin="miter"/>
+          <rect x="290" y="141" width="20" height="20" rx="4" fill="#1d4ed8" stroke="#1e3a8a" stroke-width="2"/>
+          <rect x="293" y="213" width="14" height="4" fill="#1e3a8a"/>
+          <text x="314" y="192" fill="#bfdbfe" font-size="10" font-weight="bold">ຂໍ້ງໍທໍ່ເຂົ້າ (Baffle)</text>
+          <rect x="85" y="141" width="20" height="20" rx="4" fill="#1d4ed8" stroke="#1e3a8a" stroke-width="2"/>
+          <!-- scum layer removed -->
+          <text x="262" y="66" fill="#0f172a" font-size="14" font-weight="bold">ຖັງທີ 1: ຖັງອາຈົມ</text>
+          <text x="40" y="184" fill="#fde68a" font-size="11" font-weight="bold">ຖັງອາຈົມ:</text><text id="septic-dim-text" x="40" y="199" fill="#f8fafc" font-size="11"></text>
+          <text x="300" y="305" fill="#fef08a" font-size="13" font-weight="bold">ສ່ວນນ້ຳເສຍຍ່ອຍສະຫຼາຍ</text>
+          <text x="300" y="355" fill="#d6d3d1" font-size="12" font-weight="bold">ຕະກອນ (Sludge)</text>
+          <path d="M430 90 L430 40 L470 40" fill="none" stroke="#94a3b8" stroke-width="10"/>
+          <text x="480" y="44" fill="#334155" font-size="11" font-weight="bold">ທໍ່ລະບາຍອາກາດ Ø50</text>
+          <!-- T piece -->
+          <line x1="262" y1="175" x2="478" y2="175" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="318" y="171" fill="#1d4ed8" font-size="10" font-weight="bold">ລະດັບນ້ຳ</text>
+          <path d="M440 148 L440 235 M440 170 L505 170" fill="none" stroke="#2563eb" stroke-width="10"/>
+          <rect x="433" y="145" width="14" height="4" fill="#1e3a8a"/>
+          <rect x="433" y="233" width="14" height="4" fill="#1e3a8a"/>
+          <path d="M412 175 L412 235 M405 175 L419 175 M405 235 L419 235" fill="none" stroke="#111827" stroke-width="5" stroke-linecap="round"/>
+          <path d="M412 175 L412 235 M405 175 L419 175 M405 235 L419 235" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+          <text x="358" y="208" fill="#fde68a" stroke="#111827" stroke-width="3" paint-order="stroke" font-size="10" font-weight="bold">30-40 cm</text>
+          <text x="330" y="275" fill="#93c5fd" font-size="11" font-weight="bold">T-Piece ຈົມນ້ຳ (ປາຍເປີດ)</text>
+          <text x="440" y="405" fill="#fff" font-size="12" font-weight="bold">▲ ຝາຮ່ວມ 1 ຊັ້ນ</text>
+          <!-- filter -->
+          <!-- ຖັງຕອງໃຊ້ຕົວຖັງຮ່ວມກັບຖັງອາຈົມ (ຝາຮ່ວມ x=478-490) -->
+          <rect x="490" y="90" width="156" height="288" fill="url(#void-grad)"/>
+          <rect x="490" y="90" width="8" height="90" fill="#94a3b8" opacity="0.35"/><rect x="638" y="90" width="8" height="90" fill="#94a3b8" opacity="0.35"/>
+          <rect x="490" y="180" width="156" height="60" fill="url(#gravel-real)"/>
+          <rect x="490" y="240" width="156" height="60" fill="url(#sand-real)"/>
+          <rect x="490" y="300" width="156" height="60" fill="url(#charcoal-real)"/>
+          <rect x="490" y="360" width="156" height="18" fill="url(#gravel-real)"/>
+          <line x1="490" y1="360" x2="646" y2="360" stroke="#e2e8f0" stroke-width="1"/>
+          <circle cx="484" cy="170" r="5" fill="#111827"/>
+          <path d="M440 170 L508 170" fill="none" stroke="#2563eb" stroke-width="10"/>
+          <rect x="430" y="160" width="20" height="20" rx="4" fill="#1d4ed8" stroke="#1e3a8a" stroke-width="2"/>
+          <text x="500" y="66" fill="#0f172a" font-size="14" font-weight="bold">ຖັງທີ 2: ຖັງຕອງ</text>
+          <text x="40" y="224" fill="#a7f3d0" font-size="11" font-weight="bold">ຖັງຕອງ:</text><text id="filter-dim-text" x="40" y="239" fill="#f8fafc" font-size="11"></text>
+          <rect x="495" y="200" width="108" height="20" rx="4" fill="#0f172a" opacity="0.78"/><text x="500" y="214" fill="#fff" font-size="11" font-weight="bold">1: ຫີນ (Gravel)</text>
+          <rect x="495" y="260" width="96" height="20" rx="4" fill="#0f172a" opacity="0.78"/><text x="500" y="274" fill="#fef9c3" font-size="11" font-weight="bold">2: ຊາຍຫຍາບ</text>
+          <rect x="495" y="320" width="100" height="20" rx="4" fill="#0f172a" opacity="0.78"/><text x="500" y="334" fill="#f4f4f5" font-size="11" font-weight="bold">3: ຖ່ານດັງໄຟ</text>
+          <circle cx="652" cy="187" r="5" fill="#111827"/>
+          <line x1="490" y1="192" x2="646" y2="192" stroke="#bfdbfe" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <path d="M500 368 L632 368 L632 187 L798 187" fill="none" stroke="#2563eb" stroke-width="10" stroke-linejoin="miter"/>
+          <path d="M508 368 L622 368" stroke="#0f172a" stroke-width="3" stroke-dasharray="2 7"/>
+          <rect x="622" y="358" width="20" height="20" rx="4" fill="#1d4ed8" stroke="#1e3a8a" stroke-width="2"/>
+          <rect x="622" y="177" width="20" height="20" rx="4" fill="#1d4ed8" stroke="#1e3a8a" stroke-width="2"/>
+          <!-- drain arrow removed -->
+          <text x="663" y="175" fill="#fff" font-size="11" font-weight="bold">ນ້ຳຕອງແລ້ວອອກ Ø100</text>
+          <!-- arrow removed -->
+          <!-- arrow removed -->
+        <g id="layer-legend" font-size="11" font-weight="bold">
+            <text x="40" y="262" fill="#fed7aa">ຄວາມໜາແຕ່ລະຊັ້ນຕອງ:</text>
+            <rect x="40" y="271" width="12" height="12" fill="url(#charcoal-real)" stroke="#f1f5f9" stroke-width="0.8"/><text id="layer-c" x="58" y="281" fill="#f8fafc">ຖ່ານດັງໄຟ: ໜາ 38 cm</text>
+            <rect x="40" y="288" width="12" height="12" fill="url(#sand-real)" stroke="#f1f5f9" stroke-width="0.8"/><text id="layer-s" x="58" y="298" fill="#f8fafc">ຊາຍຫຍາບ: ໜາ 38 cm</text>
+            <rect x="40" y="305" width="12" height="12" fill="url(#gravel-real)" stroke="#f1f5f9" stroke-width="0.8"/><text id="layer-g" x="58" y="315" fill="#f8fafc">ຫີນ: ໜາ 38 cm</text>
+            <rect x="40" y="322" width="12" height="12" fill="url(#gravel-real)" stroke="#f1f5f9" stroke-width="0.8"/><text id="layer-b" x="58" y="332" fill="#f8fafc">ຫີນຮອງກົ້ນຖັງ: ໜາ 10 cm</text>
+          </g>
+          <g id="dims" fill="none" stroke-linecap="round">
+            <path d="M268 378 L268 151 M262 378 L274 378 M262 151 L274 151" stroke="#111827" stroke-width="5"/>
+            <path d="M268 378 L268 151 M262 378 L274 378 M262 151 L274 151" stroke="#f59e0b" stroke-width="2.5"/>
+            <path d="M474 378 L474 170 M468 378 L480 378 M468 170 L480 170" stroke="#111827" stroke-width="5"/>
+            <path d="M474 378 L474 170 M468 378 L480 378 M468 170 L480 170" stroke="#f59e0b" stroke-width="2.5"/>
+            <path d="M706 378 L706 187 M658 378 L712 378 M700 187 L712 187" stroke="#111827" stroke-width="5"/>
+            <path d="M706 378 L706 187 M658 378 L712 378 M700 187 L712 187" stroke="#f59e0b" stroke-width="2.5"/>
+            <g fill="#fde68a" stroke="#111827" stroke-width="3" paint-order="stroke" font-size="10" font-weight="bold">
+              <text id="dim-h2" transform="translate(284 264) rotate(-90)" text-anchor="middle">1.38 m</text>
+              <text id="dim-h3" transform="translate(466 345) rotate(-90)" text-anchor="middle">1.30 m</text>
+              <text id="dim-h4" transform="translate(722 282) rotate(-90)" text-anchor="middle">1.20 m</text>
+            </g>
+          </g>
+          <g id="flow" aria-hidden="true"></g>
+          <g id="badges" font-weight="bold" font-size="11" text-anchor="middle">
+            <circle cx="66" cy="110" r="9" fill="#f59e0b" stroke="#111827"/><text x="66" y="114" fill="#111827">1</text>
+            <circle cx="338" cy="236" r="9" fill="#f59e0b" stroke="#111827"/><text x="338" y="240" fill="#111827">2</text>
+            <circle cx="460" cy="250" r="9" fill="#f59e0b" stroke="#111827"/><text x="460" y="254" fill="#111827">3</text>
+            <circle cx="613" cy="300" r="9" fill="#f59e0b" stroke="#111827"/><text x="613" y="304" fill="#111827">4</text>
+            <circle cx="824" cy="187" r="9" fill="#f59e0b" stroke="#111827"/><text x="824" y="191" fill="#111827">5</text>
+          </g>
+        </svg>
+      </div>
+      <ol class="mt-3 text-sm space-y-1 list-decimal list-inside">
+        <li>ນ້ຳ ແລະ ອາຈົມຈາກຊັກໂຄຣກໄຫຼຜ່ານທໍ່ Ø100 (ລຽງ 1:50) ເຂົ້າຖັງອາຈົມ ຜ່ານຂໍ້ງໍ Baffle ລົງຈົມນ້ຳ.</li>
+        <li>ໃນຖັງອາຈົມ: ຕະກອນໜັກຈົມລົງກົ້ນ, ຝ້າເບົາລອຍເທິງ, ແບັກທີເຣຍຍ່ອຍສະຫຼາຍ ແລະ ແກັສຂຶ້ນໄປລະບາຍທາງທໍ່ Ø50.</li>
+        <li>ນ້ຳໃສຊັ້ນກາງຖືກດູດຜ່ານ T-Piece ເຂົ້າຖັງຕອງ ໂດຍຝ້າ ແລະ ຕະກອນຖືກກັນໄວ້ໃນຖັງອາຈົມ.</li>
+        <li>ນ້ຳຊຶມລົງຜ່ານຫີນ → ຊາຍຫຍາບ → ຖ່ານດັງໄຟ ແລ້ວໄຫຼເຂົ້າທໍ່ເຈາະຮູເກັບນ້ຳຢູ່ກົ້ນຖັງ.</li>
+        <li>ນ້ຳຕອງແລ້ວຍົກຂຶ້ນຕາມທໍ່ຕັ້ງ ອອກທາງຝາຂວາ ໄປຫາຂຸມຊຶມ/ຮ່ອງບຳບັດ.</li>
+      </ol>
+      <div class="mt-3 rounded-xl p-3 bg-amber-50 border border-amber-300 text-amber-900 text-sm tint">
+        <b>📏 ໄລຍະມາດຕະຖານ (ວັດຈາກພື້ນຖັງ ຂຶ້ນໄປຫາກາງຮູທໍ່)</b>
+        <ul class="mt-1 space-y-1 text-xs">
+          <li>• <b>ຮູ 2</b> ທໍ່ເຂົ້າຖັງອາຈົມ = ຄວາມສູງຖັງ − 0.125 m = <b id="std-h2">1.38</b> m (ສູງກວ່າທໍ່ຕໍ່ຂ້າມປະມານ 7.5 cm ແລະ ຢູ່ເໜືອລະດັບນ້ຳ).</li>
+          <li>• <b>ຮູ 3</b> ທໍ່ຕໍ່ຂ້າມ (T-Piece) = ຄວາມສູງຖັງ − 0.20 m = <b id="std-h3">1.30</b> m (ຂອບລຸ່ມຂອງທໍ່ = ລະດັບນ້ຳ ແລະ ເຫຼືອຊ່ອງອາກາດເທິງນ້ຳປະມານ 25 cm).</li>
+          <li>• <b>ຮູ 4</b> ທໍ່ນ້ຳອອກຖັງຕອງ = ຮູ 3 − 0.10 m = <b id="std-h4">1.20</b> m (ຕ່ຳກວ່າທໍ່ເຂົ້າຖັງຕອງປະມານ 10 cm).</li>
+        </ul>
+        <p class="mt-1 text-[11px]">ສົມມຸດວ່າພື້ນຖັງທັງສອງອຍູ່ລະດັບດຽວກັນ. ຄ່າເປັນຫຼັກທົ່ວໄປ (ຊ່ອງອາກາດ 20-30 cm, ທໍ່ອອກຕ່ຳກວ່າທໍ່ເຂົ້າ 5-10 cm) ຄວນກວດກັບຊ່າງ/ມາດຕະຖານທ້ອງຖິ່ນ. ຮູບແຕ້ມບໍ່ຕາມມາດຕາສ່ວນ.</p>
+      </div>
+      <p class="text-xs muted mt-2 text-center">* ທໍ່ຕໍ່ຂ້າມຕ້ອງໃສ່ T-Piece ເພື່ອກັນຝ້າຂີ້ອາຈົມຊັ້ນເທິງໄຫຼໄປຖັງຕອງ.</p>
+    </section>
+
+    <!-- 3. Steps -->
+    <section>
+      <h2 class="text-xl font-bold border-b-2 border-teal-600 pb-2 mb-5">3. ຂັ້ນຕອນການກໍ່ສ້າງ</h2>
+      <div id="steps-list" class="space-y-4">
+        <div class="rounded-xl p-4 card"><h3 class="font-bold">1. ຂຸດຂຸມ ແລະ ກະຕຽມພື້ນຖານ</h3>
+          <ul class="list-disc list-inside text-sm muted space-y-1 mt-1">
+            <li>ຂຸດຂຸມກວ້າງປະມານ <b id="step1-pit-width">-</b> ມ, ຍາວ <b id="step1-pit-length">-</b> ມ, ເລິກ <b id="step1-pit-depth">-</b> ມ (ຖັງສູງ <span id="step1-septic-h">-</span> ມ).</li>
+            <li>ຖັງອາຈົມ: ເທພື້ນຄອນກຼີດເສີມເຫຼັກໜາ 10-15 cm (ປະມານ <b id="step1-concrete-vol">-</b> m³) ປ້ອງກັນນ້ຳອາຈົມຊຶມລົງດິນ.</li>
+            <li>ຖັງຕອງ: ເທພື້ນແບບປ່ອຍຊ່ອງຊຶມ ຫຼື ເທພື້ນປົກຕິແລ້ວເຈາະຮູລະບາຍ.</li></ul></div>
+        <div class="rounded-xl p-4 card"><h3 class="font-bold">2. ກໍ່ຝາຖັງ ແລະ ໂບກປູນກັນຊຶມ</h3>
+          <ul class="list-disc list-inside text-sm muted space-y-1 mt-1">
+            <li>ກໍ່ສອງຖັງຕິດກັນ ໃຊ້ຝາຂັ້ນກາງຮ່ວມກັນພຽງ 1 ຊັ້ນ (ຝາດຽວກັນ) ແລ້ວເຈາະຮູຕໍ່ທໍ່ T-Piece ຜ່ານຝານັ້ນ.</li>
+            <li>ຖັງອາຈົມ: ຍາວ <span id="step2-s-l">-</span> x ກວ້າງ <span id="step2-s-w">-</span> x ສູງ <span id="step2-s-h">-</span> ມ (ຄວາມຈຸ <b id="step2-s-vol">-</b> m³ / <b id="step2-s-liters">-</b> ລິດ).</li>
+            <li>ຖັງຕອງ: ຍາວ <span id="step2-f-l">-</span> x ກວ້າງ <span id="step2-f-w">-</span> x ສູງ <span id="step2-f-h">-</span> ມ (ຄວາມຈຸ <b id="step2-f-vol">-</b> m³ / <b id="step2-f-liters">-</b> ລິດ).</li>
+            <li>ໂບກປູນຂັດມັນພາຍໃນຖັງອາຈົມ ປະມານ <b id="step2-plaster-area">-</b> m².</li></ul></div>
+        <div class="rounded-xl p-4 card"><h3 class="font-bold">3. ຕິດຕັ້ງທໍ່ PVC (Ø100 ແລະ Ø50)</h3>
+          <ul class="list-disc list-inside text-sm muted space-y-1 mt-1">
+            <li>ທໍ່ຈາກຊັກໂຄຣກ (ຫ່າງ <b id="step3-dist">-</b> ມ) ເຂົ້າຖັງອາຈົມ ລຽງ 1:50 (ຫຼຸດລົງ <b id="step3-drop">-</b> cm) ໃຊ້ທໍ່ປະມານ <b id="step3-pipe-count">-</b> ເສັ້ນ (ເສັ້ນລະ 4 ມ).</li>
+            <li>ທໍ່ຕໍ່ຂ້າມ: ຕ້ອງມີ T-Piece ຈົມລຸ່ມລະດັບນ້ຳ 30-40 cm.</li>
+            <li>ທໍ່ເຂົ້າຖັງອາຈົມ: ມີຂໍ້ງໍລົງຈົມນ້ຳ (Baffle) ປະມານ 20-25 cm ແລະ ຢູ່ສູງກວ່າທໍ່ T-Piece ຂາອອກ ປະມານ 10 cm.</li>
+            <li>ທໍ່ນ້ຳອອກ Ø100: ຖັງຕອງມີທໍ່ເຈາະຮູເກັບນ້ຳຢູ່ກົ້ນຖັງ ແລ້ວຍົກຂຶ້ນຕັ້ງ (Riser) ອອກຜ່ານຝາຂວາ ຕ່ຳກວ່າທໍ່ເຂົ້າ ປະມານ 10 cm ເພື່ອໃຫ້ນ້ຳຜ່ານທຸກຊັ້ນຕອງ.</li>
+            <li>ທໍ່ລະບາຍອາກາດ Ø50 ຕໍ່ສູງພົ້ນຫຼັງຄາ.</li></ul></div>
+        <div class="rounded-xl p-4 card"><h3 class="font-bold">4. ບັນຈຸວັດສະດຸຕອງ (ລຸ່ມຂຶ້ນເທິງ)</h3>
+          <ul class="list-disc list-inside text-sm muted space-y-1 mt-1">
+            <li>ຊັ້ນຮອງ (ລຸ່ມສຸດ) ຫີນ 1x2 ໜາ 10 cm (<b id="step4-b-vol">-</b> m³) ອ້ອມທໍ່ເຈາະຮູເກັບນ້ຳ ເພື່ອບໍ່ໃຫ້ຖ່ານລອດເຂົ້າຮູທໍ່.</li>
+            <li>ຊັ້ນ 3 ຖ່ານດັງໄຟ ໜາ <span id="step4-c-thick">-</span> cm (<b id="step4-c-bags">-</b> ກະສອບ / <span id="step4-c-vol">-</span> m³).</li>
+            <li>ຊັ້ນ 2 ຊາຍຫຍາບ ໜາ <span id="step4-s-thick">-</span> cm (<b id="step4-s-vol">-</b> m³).</li>
+            <li>ຊັ້ນ 1 ຫີນ 1x2 ໜາ <span id="step4-g-thick">-</span> cm (<b id="step4-g-vol">-</b> m³).</li></ul></div>
+        <div class="rounded-xl p-4 card"><h3 class="font-bold">5. ປິດຝາ ແລະ ທົດລອງ</h3>
+          <ul class="list-disc list-inside text-sm muted space-y-1 mt-1">
+            <li>ປິດຝາຄອນກຼີດທັງ 2 ຖັງ. ຖັງອາຈົມຕ້ອງມີຝາເປີດ (Manhole) ຂນາດປະມານ 60 cm ໃນກາງຖັງເພື່ອລອກ/ດູດຕະກອນ ແລະ ກວດເຊັກ T-Piece; ຖັງຕອງມີຝາກວດ (Hatch) ຂນາດປະມານ 40-60 cm ເພື່ອປ່ຽນ/ລ້າງຖ່ານ ແລະ ຊາຍ.</li>
+            <li>ໃສ່ນ້ຳເຕັມຖັງອາຈົມ (ປະມານ <b id="step5-water-fill">-</b> ລິດ) ກ່ອນໃຊ້ງານ.</li>
+            <li>ທົດລອງຂົດຊັກໂຄຣກ ກວດການໄຫຼ, ການລົ້ນ ແລະ ອຸດຕັນ.</li></ul></div>
+      </div>
+    </section>
+
+    <section id="tips-box" class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl tint">
+      <h3 class="font-bold text-amber-900">💡 ຂໍ້ແນະນໍາເພີ່ມເຕີມ</h3>
+      <ul class="mt-2 text-sm text-amber-800 space-y-1">
+        <li>• ໄລຍະຫ່າງ: ຖັງອາຈົມຄວນຫ່າງຈາກບໍ່ນ້ຳບາດານ/ບໍ່ນ້ຳສ້າງ ຢ່າງນ້ອຍ 15-20 ແມັດ.</li>
+        <li>• ບຳລຸງຮັກສາ: ປ່ຽນ ຫຼື ລ້າງຖ່ານ ແລະ ຊາຍ ທຸກໆ 2-3 ປີ.</li>
+        <li>• ຫ້າມ: ຫ້າມເທນ້ຳຢາລ້າງຫ້ອງນ້ຳກົດເຂັ້ມຂຸ້ນລົງຊັກໂຄຣກ ເພາະຂ້າແບັກທີເຣຍໃນຖັງ.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<script>
+const KEY='septicFilterAppState_v1';
+const $=id=>document.getElementById(id);
+const num=(id,d)=>{const v=parseFloat($(id)?.value);return isNaN(v)?d:v};
+const fmt=n=>Math.round(n).toLocaleString('en-US');
+
+function field(label,id,val,step,min,max,theme){
+  return `<div class="flex items-center justify-between"><label for="${id}">• ${label}</label>
+  <span class="flex items-center gap-1"><input type="number" id="${id}" value="${val}" step="${step}" min="${min}" max="${max}" class="w-20 px-2 py-1 text-center bg-white border border-${theme}-300 rounded font-bold" oninput="calc()"><small>ແມັດ</small></span></div>`;
+}
+function buildFields(){
+  $('septic-fields').innerHTML=field('ຄວາມຍາວ','septic-length',1.5,0.1,0.5,5,'teal')+field('ຄວາມກວ້າງ','septic-width',1.2,0.1,0.5,5,'teal')+field('ຄວາມສູງ','septic-height',1.5,0.1,0.5,5,'teal')+
+    '<div class="pt-2 border-t border-teal-200">'+field('ໄລຍະຫ່າງຈາກຊັກໂຄຣກ','toilet-distance',4,0.5,0.5,30,'teal')+'</div>';
+  $('filter-fields').innerHTML=field('ຄວາມຍາວ','filter-length',1,0.1,0.5,5,'emerald')+field('ຄວາມກວ້າງ','filter-width',1.2,0.1,0.5,5,'emerald')+field('ຄວາມສູງ','filter-height',1.5,0.1,0.5,5,'emerald');
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function addItem(cid,name,qty,unit,price,skipCalc){
+  const theme=cid==='pipes-container'?'blue':'amber';
+  const row=document.createElement('div');
+  row.className=`item-row flex flex-wrap sm:flex-nowrap items-center gap-1.5 p-1 bg-white/80 rounded-lg border border-${theme}-200`;
+  row.innerHTML=`<input type="text" value="${esc(name)}" class="item-name w-full sm:w-1/3 px-2 py-1 bg-white border border-${theme}-300 rounded text-xs">
+  <div class="flex items-center gap-1 w-full sm:w-2/3 justify-end">
+  <input type="number" value="${qty}" min="0" step="any" class="item-qty w-14 px-1 py-1 text-center bg-white border border-${theme}-300 rounded font-bold text-xs" oninput="calc()">
+  <input type="text" value="${esc(unit)}" class="item-unit w-12 px-1 py-1 text-center bg-white border border-${theme}-300 rounded text-xs">
+  <input type="number" value="${price}" min="0" step="1000" class="item-price w-20 px-1 py-1 text-right bg-white border border-${theme}-300 rounded font-bold text-xs" oninput="calc()">
+  <small>ກີບ</small><button type="button" class="px-1 text-xs text-slate-500" onclick="this.closest('.item-row').remove();calc()" aria-label="ລົບ">✕</button></div>`;
+  $(cid).appendChild(row);
+  if(!skipCalc)calc();
+}
+function seedItems(){
+  [['• ທໍ່ PVC Ø100',3,'ເສັ້ນ',85000],['• ທໍ່ PVC Ø50 (ອາກາດ)',1,'ເສັ້ນ',35000],['• ຂໍ້ຕໍ່ 3 ທາງ Ø100 (T-Piece)',1,'ຂໍ້',25000]].forEach(a=>addItem('pipes-container',...a,true));
+  [['• ຫີນຮອງພື້ນ (1x2)',0.53,'m³',180000],['• ຊາຍຫຍາບ',0.41,'m³',150000],['• ຖ່ານດັງໄຟ',11,'ກະສອບ',45000]].forEach(a=>addItem('filter-materials-container',...a,true));
+}
+function total(cid){
+  let t=0;document.querySelectorAll('#'+cid+' .item-row').forEach(r=>{t+=(parseFloat(r.querySelector('.item-qty').value)||0)*(parseFloat(r.querySelector('.item-price').value)||0)});return t;
+}
+function set(id,v){const e=$(id);if(e)e.textContent=v}
+
+function calc(){
+  const sL=num('septic-length',1.5),sW=num('septic-width',1.2),sH=num('septic-height',1.5);
+  const fL=num('filter-length',1),fW=num('filter-width',1.2),fH=num('filter-height',1.5);
+  const dist=num('toilet-distance',4);
+  const exc=num('excavation-labor-cost',0),mason=num('mason-labor-cost',0);
+  const pipeCost=total('pipes-container'),filterCost=total('filter-materials-container');
+  const sVol=sL*sW*sH,fVol=fL*fW*fH;
+  const drop=dist*2,pipes=Math.ceil((dist+sL+fL+1.5)/4);
+  const pitL=(sL+fL+0.6).toFixed(1),pitW=(Math.max(sW,fW)+0.6).toFixed(1),pitD=(Math.max(sH,fH)+0.3).toFixed(1);
+  const slab=(pitL*pitW*0.12).toFixed(2);
+  const plaster=(sL*sW+2*sL*sH+2*sW*sH).toFixed(1);
+  const lyr=Math.max((fH*0.75-0.10)/3,0.05);const gVol=(fL*fW*lyr).toFixed(2),sdVol=gVol,cVol=(fL*fW*lyr).toFixed(2),bVol=(fL*fW*0.10).toFixed(2);
+  const bags=Math.ceil(cVol/0.04);
+  set('septic-dim-text',`ຍາວ ${sL}m x ກວ້າງ ${sW}m x ສູງ ${sH}m`);
+  set('filter-dim-text',`ຍາວ ${fL}m x ກວ້າງ ${fW}m x ສູງ ${fH}m`);
+  const k=' ກີບ';
+  set('card-pipe-total',fmt(pipeCost)+k);set('card-filter-total',fmt(filterCost)+k);
+  set('summary-pipe-cost',fmt(pipeCost)+k);set('summary-filter-cost',fmt(filterCost)+k);
+  set('summary-excavation-cost',fmt(exc)+k);set('summary-mason-cost',fmt(mason)+k);
+  set('summary-grand-total',fmt(pipeCost+filterCost+exc+mason)+k);
+  set('step1-pit-width',pitW);set('step1-pit-length',pitL);set('step1-pit-depth',pitD);set('step1-septic-h',sH);set('step1-concrete-vol',slab);
+  set('step2-s-l',sL);set('step2-s-w',sW);set('step2-s-h',sH);set('step2-s-vol',sVol.toFixed(2));set('step2-s-liters',fmt(sVol*1000));
+  set('step2-f-l',fL);set('step2-f-w',fW);set('step2-f-h',fH);set('step2-f-vol',fVol.toFixed(2));set('step2-f-liters',fmt(fVol*1000));
+  set('step2-plaster-area',plaster);
+  set('step3-dist',dist);set('step3-drop',drop.toFixed(1));set('step3-pipe-count',pipes);
+  set('step4-b-vol',bVol);set('step4-g-thick',Math.round(lyr*100));set('step4-g-vol',gVol);set('step4-s-thick',Math.round(lyr*100));set('step4-s-vol',sdVol);
+  set('step4-c-thick',Math.round(lyr*100));set('step4-c-vol',cVol);set('step4-c-bags',`${Math.max(bags-1,0)}-${bags+1}`);
+  set('step5-water-fill',fmt(sVol*1000));
+  const h3=Math.max(sH-0.20,0.3),h2=h3+0.075,h4=Math.max(h3-0.10,0.2);
+  set('dim-h2',''+h2.toFixed(2)+' m');set('dim-h3',''+h3.toFixed(2)+' m');set('dim-h4',''+h4.toFixed(2)+' m');
+  set('std-h2',h2.toFixed(2));set('std-h3',h3.toFixed(2));set('std-h4',h4.toFixed(2));
+  const lt=Math.round(lyr*100);
+  set('layer-c','ຖ່ານດັງໄຟ: ໜາ '+lt+' cm');set('layer-s','ຊາຍຫຍາບ: ໜາ '+lt+' cm');set('layer-g','ຫີນ: ໜາ '+lt+' cm');
+}
+
+function collect(){
+  const vals={};document.querySelectorAll('input[id]').forEach(e=>vals[e.id]=e.value);
+  const rows=cid=>[...document.querySelectorAll('#'+cid+' .item-row')].map(r=>({name:r.querySelector('.item-name').value,qty:r.querySelector('.item-qty').value,unit:r.querySelector('.item-unit').value,price:r.querySelector('.item-price').value}));
+  return {version:1,ts:new Date().toISOString(),vals,pipes:rows('pipes-container'),filter:rows('filter-materials-container')};
+}
+function saveState(){
+  try{localStorage.setItem(KEY,JSON.stringify(collect()));alert('✅ ບັນທຶກຂໍ້ມູນແລ້ວ')}catch(e){alert('❌ ບັນທຶກບໍ່ສຳເລັດ')}
+}
+function loadState(msg){
+  let raw=null;
+  try{raw=localStorage.getItem(KEY)}catch(e){}
+  if(!raw){if(msg)alert('ℹ️ ຍັງບໍ່ມີຂໍ້ມູນທີ່ບັນທຶກ');return}
+  try{
+    const s=JSON.parse(raw);
+    Object.entries(s.vals||{}).forEach(([id,v])=>{const e=$(id);if(e)e.value=v});
+    ['pipes-container','filter-materials-container'].forEach((cid,i)=>{
+      $(cid).innerHTML='';(i?s.filter:s.pipes||[]).forEach(it=>addItem(cid,it.name,it.qty,it.unit,it.price,true));
+    });
+    calc();if(msg)alert('✅ ໂຫຼດຂໍ້ມູນຄືນແລ້ວ');
+  }catch(e){if(msg)alert('❌ ໂຫຼດບໍ່ສຳເລັດ')}
+}
+function resetState(){
+  if(!confirm('ຕ້ອງການລ້າງຂໍ້ມູນທັງໝົດບໍ?'))return;
+  try{localStorage.removeItem(KEY)}catch(e){}
+  location.reload();
+}
+
+function buildFlow(){
+  const g=$('flow');if(!g||g.childNodes.length)return;
+  const NS='http://www.w3.org/2000/svg';
+  const mk=(n,a,p)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);(p||g).appendChild(e);return e};
+  const WASTE=[[0,3.5,7,3.8,'#5a3214'],[0,-0.5,5,3.2,'#7c4a1d'],[0,-4,2.8,2.4,'#9a6a33']];
+  const DROP='M0 -6 C3 -2 5 0 5 2.5 A5 5 0 0 1 -5 2.5 C-5 0 -3 -2 0 -6Z';
+  const dot=(path,dur,begin,kind,s,o)=>{
+    const c=mk('g',{opacity:'0'});
+    if(kind==='waste'){const sg=mk('g',{transform:'scale('+s+')'},c);WASTE.forEach(w=>mk('ellipse',{cx:w[0],cy:w[1],rx:w[2],ry:w[3],fill:w[4],stroke:'#fbbf24','stroke-width':'1'},sg))}
+    else if(kind==='water'){const sg=mk('g',{transform:'scale('+s+')'},c);mk('path',{d:DROP,fill:'#38bdf8',stroke:'#e0f2fe','stroke-width':'1'},sg)}
+    else mk('circle',{r:o.r,fill:o.fill,stroke:o.stroke||'none','stroke-width':'0.8'},c);
+    mk('animateMotion',{path:path,dur:dur+'s',begin:begin+'s',repeatCount:'indefinite'},c);
+    mk('animate',{attributeName:'opacity',values:'0;1;1;0',keyTimes:'0;0.08;0.92;1',dur:dur+'s',begin:begin+'s',repeatCount:'indefinite'},c);
+  };
+  for(let i=0;i<6;i++)dot('M95 90 L95 151 L300 151 L300 213',6,-i,i%2?'water':'waste',i%2?0.7:0.75);
+  [-14,10,-6,16,0].forEach((dx,i)=>dot('M300 215 L'+(300+dx)+' 316',7,-i*1.4,'waste',0.6));
+  [24,40,56].forEach((dx,i)=>dot('M300 213 L'+(300+dx)+' 178',4,-i*1.3,'circle',0,{r:2.5,fill:'#a16207',stroke:'#fde68a'}));
+  [330,362,395].forEach((x,i)=>{const e=mk('ellipse',{cx:x,cy:176,rx:14,ry:3,fill:'#a16207',opacity:'0.85'});mk('animateTransform',{attributeName:'transform',type:'translate',values:'0 0;0 1.6;0 0',dur:(2.6+i*0.5)+'s',repeatCount:'indefinite'},e)});
+  [275,350,410,455].forEach((x,i)=>dot('M'+x+' 316 L'+(x+4)+' 180',5,-i*1.2,'circle',0,{r:2.5,fill:'rgba(255,255,255,.25)',stroke:'#e5e7eb'}));
+  for(let i=0;i<3;i++)dot('M430 92 L430 40 L470 40',3.5,-i*1.2,'circle',0,{r:3,fill:'#e2e8f0',stroke:'#64748b'});
+  for(let i=0;i<4;i++)dot('M440 238 L440 170 L508 170',3.5,-i*0.9,'water',0.7);
+  [520,545,570,600,625].forEach((x,i)=>dot('M506 170 L'+x+' 176 L'+x+' 360',5,-i,'water',0.7));
+  for(let i=0;i<5;i++)dot('M502 368 L632 368 L632 187 L798 187',6,-i*1.2,'water',0.7);
+}
+let flowOn=true;
+function toggleFlow(){
+  const s=$('xsec');if(!s||!s.pauseAnimations)return;
+  flowOn=!flowOn;s.classList.toggle('playing',flowOn);
+  if(flowOn)s.unpauseAnimations();else s.pauseAnimations();
+  const b=$('flow-btn');if(b)b.textContent=flowOn?'⏸ ຢຸດອານິເມຊັນ':'▶ ເປີດອານິເມຊັນ';
+}
+
+/* ---------- Export (Word / PDF) ---------- */
+let dlNs=null;
+function toast(m,ms){const t=$('toast');if(!t)return;t.textContent=m;t.classList.remove('hidden');clearTimeout(toast._t);if(ms)toast._t=setTimeout(()=>t.classList.add('hidden'),ms)}
+function toggleExportMenu(e){e&&e.stopPropagation();const m=$('export-menu'),b=$('export-btn');const open=m.classList.toggle('hidden')===false;b.setAttribute('aria-expanded',open)}
+document.addEventListener('click',()=>{const m=$('export-menu');if(m&&!m.classList.contains('hidden')){m.classList.add('hidden');$('export-btn').setAttribute('aria-expanded','false')}});
+function loadScript(src){return new Promise((res,rej)=>{if(document.querySelector('script[data-src="'+src+'"]'))return res();const e=document.createElement('script');e.src=src;e.dataset.src=src;e.onload=res;e.onerror=()=>rej(new Error('load '+src));document.head.appendChild(e)})}
+async function withLabels(fn){const was=flowOn;if(was)toggleFlow();try{return await fn()}finally{if(was)toggleFlow()}}
+async function doExport(kind){
+  const m=$('export-menu');if(m)m.classList.add('hidden');
+  if(!dlNs){toast('❌ ອຸປະກອນນີ້ບໍ່ຮອງຮັບການດາວໂຫຼດ ໃຊ້ປຸ່ມພິມແທນ',4000);return}
+  const btn=$('export-btn');btn.disabled=true;
+  toast('⏳ ກຳລັງສ້າງໄຟລ໌ '+(kind==='pdf'?'PDF':'Word')+'...');
+  try{
+    window.scrollTo(0,0);
+    const file=kind==='pdf'?await buildPdf():await buildDocx();
+    const name='septic-filter-manual.'+kind;
+    await dlNs.save({filename:name,data:file});
+    toast('✅ ສົ່ງອອກສຳເລັດ',2500);
+  }catch(err){
+    if(err&&err.code==='declined')toast('ຍົກເລີກການບັນທຶກ',2000);
+    else{console.error(err);toast('❌ ສົ່ງອອກບໍ່ສຳເລັດ'+(err&&err.code?' ('+err.code+')':''),4500)}
+  }finally{btn.disabled=false}
+}
+async function buildPdf(){
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const canvas=await withLabels(()=>html2canvas($('export-root'),{scale:1.5,backgroundColor:'#ffffff',scrollX:0,scrollY:0,ignoreElements:el=>el.classList&&el.classList.contains('no-print')}));
+  const {jsPDF}=window.jspdf;const pdf=new jsPDF('p','mm','a4');
+  const pw=210,ph=297,pxMm=canvas.width/pw,pageH=Math.floor(ph*pxMm);
+  for(let y=0,i=0;y<canvas.height;y+=pageH,i++){
+    const h=Math.min(pageH,canvas.height-y);
+    const c=document.createElement('canvas');c.width=canvas.width;c.height=h;
+    const cx=c.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,c.width,h);cx.drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+    if(i)pdf.addPage();
+    pdf.addImage(c.toDataURL('image/jpeg',0.9),'JPEG',0,0,pw,h/pxMm);
+  }
+  return pdf.output('blob');
+}
+async function buildDocx(){
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  const cv=await withLabels(()=>html2canvas($('diagram-wrap'),{scale:2,backgroundColor:'#ffffff',scrollX:0,scrollY:0}));
+  const png=await new Promise(r=>cv.toBlob(r,'image/png'));
+  const X=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const F='<w:rFonts w:ascii="Noto Sans Lao" w:hAnsi="Noto Sans Lao" w:cs="Leelawadee UI" w:eastAsia="Leelawadee UI"/>';
+  const run=(t,o)=>{o=o||{};const z=o.sz||22;return '<w:r><w:rPr>'+F+(o.b?'<w:b/><w:bCs/>':'')+(o.color?'<w:color w:val="'+o.color+'"/>':'')+'<w:sz w:val="'+z+'"/><w:szCs w:val="'+z+'"/></w:rPr><w:t xml:space="preserve">'+X(t)+'</w:t></w:r>'};
+  const para=(t,o)=>{o=o||{};return '<w:p><w:pPr><w:spacing w:before="'+(o.before||60)+'" w:after="'+(o.after||60)+'"/>'+(o.bullet?'<w:ind w:left="360" w:hanging="240"/>':'')+(o.center?'<w:jc w:val="center"/>':'')+'</w:pPr>'+run((o.bullet?'• ':'')+t,o)+'</w:p>'};
+  const H=t=>para(t,{b:1,sz:28,color:'0F766E',before:280,after:100});
+  const cell=(t,w,o)=>'<w:tc><w:tcPr><w:tcW w:w="'+w+'" w:type="dxa"/>'+(o.fill?'<w:shd w:val="clear" w:color="auto" w:fill="'+o.fill+'"/>':'')+'</w:tcPr><w:p><w:pPr>'+(o.right?'<w:jc w:val="right"/>':'')+'</w:pPr>'+run(t,{b:o.b,sz:20})+'</w:p></w:tc>';
+  const table=(rows,widths,numeric)=>'<w:tbl><w:tblPr><w:tblW w:w="'+widths.reduce((a,b)=>a+b,0)+'" w:type="dxa"/><w:tblBorders>'+['top','left','bottom','right','insideH','insideV'].map(k=>'<w:'+k+' w:val="single" w:sz="4" w:space="0" w:color="94A3B8"/>').join('')+'</w:tblBorders></w:tblPr>'+rows.map((r,i)=>'<w:tr>'+r.map((c,j)=>cell(c,widths[j],{b:i===0,fill:i===0?'CCFBF1':'',right:numeric&&j>0&&i>0})).join('')+'</w:tr>').join('')+'</w:tbl>';
+  const val=id=>parseFloat($(id).value)||0;
+  const sL=val('septic-length'),sW=val('septic-width'),sH=val('septic-height'),fL=val('filter-length'),fW=val('filter-width'),fH=val('filter-height');
+  const items=cid=>[...document.querySelectorAll('#'+cid+' .item-row')].map(r=>{const q=parseFloat(r.querySelector('.item-qty').value)||0,pr=parseFloat(r.querySelector('.item-price').value)||0;return [r.querySelector('.item-name').value.replace(/^•\s*/,''),String(q),r.querySelector('.item-unit').value,fmt(pr),fmt(q*pr)]});
+  const tot=cid=>total(cid);
+  const exc=val('excavation-labor-cost'),mas=val('mason-labor-cost'),tp=tot('pipes-container'),tf=tot('filter-materials-container');
+  const itemHead=['ລາຍການ','ຈຳນວນ','ໜ່ວຍ','ລາຄາ/ໜ່ວຍ (ກີບ)','ລວມ (ກີບ)'];
+  let body=para('ຄູ່ມືການສ້າງວິດຖ່າຍແບບກັນຕອງ',{b:1,sz:40,color:'0F766E',center:1,after:40})+para('ລະບົບສອງຖັງ: ຖັງອາຈົມ (Septic Tank) + ຖັງຕອງ (Filter Tank)',{center:1,after:160});
+  body+=H('1. ຂະໜາດຖັງ')+table([['ລາຍການ','ຍາວ (ມ)','ກວ້າງ (ມ)','ສູງ (ມ)','ຄວາມຈຸ (ລິດ)'],['ຖັງອາຈົມ',sL,sW,sH,fmt(sL*sW*sH*1000)],['ຖັງຕອງ',fL,fW,fH,fmt(fL*fW*fH*1000)]].map(r=>r.map(String)),[2400,1500,1500,1500,2200],true)+para('ໄລຍະຫ່າງຈາກຊັກໂຄຣກ: '+val('toilet-distance')+' ແມັດ',{before:100});
+  body+=H('2. ລະບົບທໍ່ (Pipes & Fittings)')+table([itemHead].concat(items('pipes-container')),[3300,1000,1000,2000,2000],true);
+  body+=H('3. ວັດສະດຸຕອງ (Filter Materials)')+table([itemHead].concat(items('filter-materials-container')),[3300,1000,1000,2000,2000],true);
+  body+=H('4. ງົບປະມານລວມ')+table([['ລາຍການ','ຈຳນວນເງິນ (ກີບ)'],['ຄ່າອຸປະກອນລະບົບທໍ່',fmt(tp)],['ຄ່າວັດສະດຸຕອງ',fmt(tf)],['ຄ່າແຮງງານຂຸດຂຸມ',fmt(exc)],['ຄ່າແຮງງານຊ່າງ',fmt(mas)],['ລວມທັງໝົດ',fmt(tp+tf+exc+mas)]],[5600,3700],true);
+  body+=H('5. ໄລຍະມາດຕະຖານ (ວັດຈາກພື້ນຖັງ ຫາ ກາງຮູທໍ່)')+para('ຮູ 2 ທໍ່ເຂົ້າຖັງອາຈົມ: '+$('std-h2').textContent+' m',{bullet:1})+para('ຮູ 3 ທໍ່ຕໍ່ຂ້າມ (T-Piece): '+$('std-h3').textContent+' m',{bullet:1})+para('ຮູ 4 ທໍ່ນ້ຳອອກຖັງຕອງ: '+$('std-h4').textContent+' m',{bullet:1});
+  const CX=5760000,CY=Math.round(CX*cv.height/cv.width);
+  body+=H('6. ຮູບໜ້າຕັດ (Cross-Section)')+'<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="'+CX+'" cy="'+CY+'"/><wp:docPr id="1" name="Diagram" descr="Cross-section diagram"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="diagram.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+CX+'" cy="'+CY+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+  body+=H('7. ຂັ້ນຕອນການກໍ່ສ້າງ');
+  document.querySelectorAll('#steps-list > div').forEach(d=>{const h=d.querySelector('h3');if(h)body+=para(h.textContent.trim(),{b:1,sz:24,before:160});d.querySelectorAll('li').forEach(li=>{body+=para(li.textContent.replace(/\s+/g,' ').trim(),{bullet:1})})});
+  body+=H('8. ຂໍ້ແນະນຳເພີ່ມເຕີມ');
+  document.querySelectorAll('#tips-box li').forEach(li=>{body+=para(li.textContent.replace(/\s+/g,' ').replace(/^•\s*/,'').trim(),{bullet:1})});
+  const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+  const doc='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document '+NS+'><w:body>'+body+'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>';
+  const zip=new JSZip();
+  zip.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  zip.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file('word/_rels/document.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/></Relationships>');
+  zip.file('word/document.xml',doc);
+  zip.file('word/media/image1.png',png);
+  return zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+}
+(async()=>{
+  try{dlNs=(window.claude&&claude.use)?await claude.use('downloads'):null}catch(e){dlNs=null}
+  if(!dlNs){const w=$('export-wrap');if(w)w.classList.add('hidden');const f=$('print-fallback');if(f)f.classList.remove('hidden')}
+})();
+
+buildFields();seedItems();calc();loadState(false);buildFlow();
+if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)toggleFlow();
+</script>
+</body>
+</html>
